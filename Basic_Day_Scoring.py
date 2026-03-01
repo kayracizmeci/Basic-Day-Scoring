@@ -1,12 +1,15 @@
 
-import json # For saving.
+import json # For saving
+import os
 
 
+os.chdir(os.path.dirname(os.path.abspath(__file__))) # For not crashing while not running on IDE
 
 
 def save(data):
     with open('data.json', 'w') as file:
         json.dump(data, file, indent=4)
+
 
 def load():
     try:
@@ -23,7 +26,7 @@ def load():
 
 def save_decorator(func):
     def wrapper(poi, g, b):
-        log, updated_g, updated_b = func(poi, g, b) # Runs the given func for us it's calculate_global_score function.
+        log, updated_g, updated_b = func(poi, g, b) # Runs the given func for, us it's calculate_global_score function.
         save(log)
         return log, updated_g, updated_b
     return wrapper
@@ -40,7 +43,7 @@ def calculate_global_score(poi, g, b):
        b = b + poi
        if g >= 5:
            g = g - 5
-    log = {'good': g, 'bad': b} # Creates a dictianory for saving.
+    log = {'good': g, 'bad': b} # Creates a dictionary for saving.
     return log, g, b
 
 
