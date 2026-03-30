@@ -29,6 +29,9 @@ while True:
         print('__--**Available Commands**--__')
         print('bds add task - Add a task to the program')
         print('bds help - Show the help menu')
+        print('bds remove task - Remove a task')
+        print('bds list task - List all tasks')
+        print('bds quit - Quit the program')
         continue
 
     elif input_task == 'bds remove task':
