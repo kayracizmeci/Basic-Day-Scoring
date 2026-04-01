@@ -1,24 +1,75 @@
 
 from datetime import datetime
+import json
 
 
 def get_start_day():
-    return datetime.now().strftime("%a").lower()[:2]
+    return datetime.now().strftime("%a").lower()[:2] # Gets the current day of the week
 
 
 def parse_days_input(days_text):
-    return [day.strip().lower() for day in days_text.split(",") if day.strip()]
+    return [day.strip().lower() for day in days_text.split(",") if day.strip()] # Converts the day inputs to a list of days
 
 
-program = {
-    'mo': [],  # Monday
-    'tu': [],  # Tuesday
-    'we': [],  # Wednesday
-    'th': [],  # Thursday
-    'fr': [],  # Friday
-    'sa': [],  # Saturday
-    'su': []   # Sunday
-}
+save_file_name = "bds_save.json"
+
+
+def empty_program():
+    return {
+        'mo': {},  # Monday
+        'tu': {},  # Tuesday
+        'we': {},  # Wednesday
+        'th': {},  # Thursday
+        'fr': {},  # Friday
+        'sa': {},  # Saturday
+        'su': {}   # Sunday
+    }
+
+
+def save_program(program_data):
+    with open(save_file_name, "w", encoding="utf-8") as file:
+        json.dump(program_data, file, indent=2)
+
+
+def normalize_day_tasks(day_data):
+    if isinstance(day_data, dict): # Controls the data 
+        return {str(task): bool(done) for task, done in day_data.items()}
+
+    if isinstance(day_data, list):
+        normalized = {}
+        for item in day_data:
+            if isinstance(item, dict):
+                for task, done in item.items():
+                    normalized[str(task)] = bool(done)
+            elif isinstance(item, str):
+                normalized[item] = False
+        return normalized
+
+    return {}
+
+
+def load_program():
+    default_data = empty_program()
+    try:
+        with open(save_file_name, "r", encoding="utf-8") as file:
+            loaded = json.load(file)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        save_program(default_data)
+        return default_data
+
+    if not isinstance(loaded, dict):
+        save_program(default_data)
+        return default_data
+
+    normalized = {
+        day: normalize_day_tasks(loaded.get(day, {}))
+        for day in default_data
+    }
+    save_program(normalized)
+    return normalized
+
+
+program = load_program()
 
 
 
@@ -43,8 +94,10 @@ while True:
             continue
 
         for day in days:
-            program[day].append({task_name: False})
+            if task_name not in program[day]:
+                program[day][task_name] = False
 
+        save_program(program)
         print(f":! task added to {', '.join(days)}")
         continue
 
@@ -56,6 +109,8 @@ while True:
         print('bds remove task - Remove a task')
         print('bds list task - List this days tasks')
         print('bds quit - Quit the program')
+        print('--------------------------------')
+        print('days: mo, tu, we, th, fr, sa, su')
         continue
 
     elif input_task == 'bds remove task':
@@ -63,17 +118,12 @@ while True:
         removed_count = 0
 
         for day_key in program:
-            original_len = len(program[day_key])
-            program[day_key] = [
-                task for task in program[day_key]
-                if not (
-                    (isinstance(task, dict) and task_name in task)
-                    or task == task_name
-                )
-            ]
-            removed_count += original_len - len(program[day_key])
+            if task_name in program[day_key]:
+                del program[day_key][task_name]
+                removed_count += 1
 
         if removed_count > 0:
+            save_program(program)
             print(f":! removed {removed_count} task named '{task_name}'")
         else:
             print(":! task not found")
@@ -88,18 +138,14 @@ while True:
 
     elif input_task == 'bds check task':
         task_name = input(":! check task name: ")
-        toggled_count = 0
-
-        for task in program[start_day_key]:
-            if isinstance(task, dict) and task_name in task:
-                task[task_name] = not task[task_name]
-                toggled_count += 1
-
-        if toggled_count > 0:
+        if task_name in program[start_day_key]:
+            program[start_day_key][task_name] = not program[start_day_key][task_name]
+            save_program(program)
             print(f":! task updated for today")
         else:
             print(":! task not found for today")
         continue
+
 
     else:
         print(":! invalid command")
