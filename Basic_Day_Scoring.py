@@ -1,149 +1,211 @@
 
-
-import json  # For saving
-import os
-import datetime
-import time
-import sys
-import matplotlib
-matplotlib.use('TkAgg') # For not crashing
-import matplotlib.pyplot as plt
-
-os.chdir(os.path.dirname(os.path.abspath(__file__)))  # For not crashing while not running on IDE
+from datetime import datetime
+import json
 
 
-def save(new_log):
+def get_start_day():
+    return datetime.now().strftime("%a").lower()[:2] # Gets the current day of the week
+
+
+def parse_days_input(days_text):
+    return [day.strip().lower() for day in days_text.split(",") if day.strip()] # Converts the day inputs to a list of days
+
+
+save_file_name = "bds_save.json"
+
+
+def empty_program():
+    return {
+        "score": 0,
+        "days": {
+            'mo': {},  # Monday
+            'tu': {},  # Tuesday
+            'we': {},  # Wednesday
+            'th': {},  # Thursday
+            'fr': {},  # Friday
+            'sa': {},  # Saturday
+            'su': {}   # Sunday
+        }
+    }
+
+days_of_the_week = ("mo", "tu", "we", "th", "fr", "sa", "su")
+
+
+def save_program(program_data): # Overwrites the save file with the new data
+    with open(save_file_name, "w", encoding="utf-8") as file:
+        json.dump(program_data, file, indent=2)
+
+
+def normalize_day_tasks(day_data):
+    if isinstance(day_data, dict): # Controls the data
+        return {
+            str(task): bool(done)
+            for task, done in day_data.items()
+            if isinstance(task, str)
+        }
+    return {}
+
+
+def load_program():
+    default_data = empty_program()
+
+    # Controls
     try:
-        with open('data.json', 'r') as file:
-            save_data = json.load(file)
-        if type(save_data) is not list:
-            save_data = []
-    except (FileNotFoundError, json.JSONDecodeError):
-        save_data = []
+        with open(save_file_name, "r", encoding="utf-8") as file:
+            loaded = json.load(file)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        save_program(default_data)
+        return default_data
 
-    save_data.append(new_log)
-    with open('data.json', 'w') as file:
-        json.dump(save_data, file)
+    if not isinstance(loaded, dict):
+        save_program(default_data)
+        return default_data
 
+    if "score" not in loaded or "days" not in loaded:
+        save_program(default_data)
+        return default_data
 
-def loader():
+    if not isinstance(loaded["days"], dict):
+        save_program(default_data)
+        return default_data
+
     try:
-        with open('data.json', 'r') as file:
-            save_data = json.load(file)
-            if len(save_data) > 0:
-                return save_data[-1]
-            else:
-                return {'gbg': 0, 'bbg': 0}
-    except (FileNotFoundError, json.JSONDecodeError):
-        return {'gbg': 0, 'bbg': 0}
+        score_value = int(loaded["score"])
+    except (TypeError, ValueError):
+        score_value = 0
+
+    normalized = {
+        "score": score_value,
+        "days": {
+            day: normalize_day_tasks(loaded["days"].get(day, {}))
+            for day in days_of_the_week
+        }
+    }
+    save_program(normalized)
+    return normalized
 
 
-def save_decorator(func):
-    def wrapper(poi, gbg, bbg):
-        log, gbg, bbg = func(poi, gbg, bbg)
-        save(log)
-        return log, gbg, bbg
-
-    return wrapper
+program = load_program()
 
 
-@save_decorator  # Filters the input. If the value is negative then it is considered bad bars value. But we don't really use the input negative it's only for filtering.
-def calculate_global_score(poi, gbg, bbg):
-    r_poi = poi
-    if poi >= 0:
-        gob = 'good'
-        gbg = gbg + poi
-        if bbg >= 5:
-            bbg = bbg - 5
-    elif poi < 0:
-        gob = 'bad'
-        poi = abs(poi)
-        bbg = bbg + poi
-        if gbg >= 5:
-            gbg = gbg - 5
-
-    rigth_now = datetime.datetime.now()
-    time_str = rigth_now.strftime("%Y-%m-%d %H:%M:%S")
-    log = {'gbg': gbg, 'bbg': bbg, 'cv': r_poi, 'gob': gob, 'time': time_str}  # Creates a dictionary for saving.
-    return log, gbg, bbg
 
 
-def show_graph():
-    with open('data.json', 'r') as file:
-        save_data = json.load(file)
-
-    if save_data == []:
-        print('There is no data for graph')
-        return
-
-    dates = [log['time'] for log in save_data]
-    good_bar = [log['gbg'] for log in save_data]
-    bad_bar = [log['bbg'] for log in save_data]
-
-    plt.figure(figsize=(10, 5))
-
-    plt.plot(dates, good_bar, label='Good Bar', color='green', marker='o')
-    plt.plot(dates, bad_bar, label='Bad Bar', color='red', marker='x')
-
-    plt.title('Good Bar/Bad Bar')
-    plt.xlabel('Time')
-    plt.ylabel('Points')
-    plt.xticks(rotation=60)
-    plt.legend()
-    plt.grid(True)
-
-    plt.tight_layout()
-    plt.show()
-
-
+# Main Loop
 while True:
-    rn_data = loader()  # Loads the old data or creates the data.
+    start_day_key = get_start_day()
+    days = program["days"]
 
-    print('BASIC DAY SCORING')
-    print('What did you done this day?')
+    input_task = input(":! ")
+    print("type 'bds help' for information")
 
-    while True:
-        g_or_b = str(input('good or bad? (answer with g or b) ')).lower()
-        if g_or_b not in ['g', 'b']:
-            print('Please answer with g or b!')
+
+    if input_task == 'bds add task':
+        task_name = input(":! add task name: ")
+        days_text = input(":! add task day(s) (ex: mo,tu,we): ")
+        selected_days = parse_days_input(days_text)
+
+        invalid_days = [day for day in selected_days if day not in days]
+        if not selected_days:
+            print(":! no day entered")
             continue
-        else:
-            break
-
-    while True:
-        try:
-            point = float(input('How much points? '))
-            if g_or_b == 'b':
-                point_ng = point * 2  # For doing bad bar negative.
-                point = point - point_ng
-                point = point / 4  # We do this for bad bar to increase slowly.
-        except ValueError:
-            print('Please answer with an number!')
+        if invalid_days:
+            print(f":! invalid day key(s): {', '.join(invalid_days)}")
             continue
 
+        for day in selected_days:
+            if task_name not in days[day]:
+                days[day][task_name] = False
+
+        save_program(program)
+        print(f":! task added to {', '.join(selected_days)}")
+        continue
+
+    elif input_task == 'bds help':
+        print('__--**Available Commands**--__')
+        print(f":! today: {start_day_key}")
+        print(f":! total score: {program['score']}")
+        print('bds add task - Add a task to the program')
+        print('bds check task - Toggle task for today')
+        print('bds help - Show the help menu')
+        print('bds status - Show total score')
+        print('bds remove task - Remove a task')
+        print('bds list task - List this days tasks')
+        print('bds finish - Score and reset todays tasks')
+        print('bds reset - Score and reset whole weeks tasks')
+        print('bds quit - Quit the program')
+        print('--------------------------------')
+        print('days: mo, tu, we, th, fr, sa, su')
+        continue
+
+    elif input_task == 'bds remove task':
+        task_name = input(":! remove task name: ")
+        removed_count = 0
+
+        for day_key in days:
+            if task_name in days[day_key]:
+                del days[day_key][task_name]
+                removed_count += 1
+
+        if removed_count > 0:
+            save_program(program)
+            print(f":! removed {removed_count} task named '{task_name}'")
         else:
-            break
+            print(":! task not found")
+        continue
 
-    g_val = rn_data['gbg']
-    bad_val = rn_data['bbg']
-    calculate_global_score(point, g_val, bad_val)  # Start
-    rn_data = loader()
-    g_val = rn_data['gbg']
-    bad_val = rn_data['bbg']
-    print(f'Your total scores: good bar: {g_val},  bad bar: {bad_val}')
-    print(f'Your total global score is {g_val - bad_val}')
-    print('Showing graph..')
-    time.sleep(2)
-    show_graph()
+    elif input_task == 'bds list task':
+        print(days[start_day_key])
 
-    while True:
-        q_answer = input('Do you wanna quit? Answer with y or n ').lower()
 
-        if q_answer == 'y':
-            print('Closing...')
-            sys.exit()
-        elif q_answer == 'n':
-            break
+    elif input_task == 'bds status':
+        print(f":! total score: {program['score']}")
+        continue
+
+    elif input_task == 'bds quit':
+        break
+
+    elif input_task == 'bds check task':
+        task_name = input(":! check task name: ")
+        if task_name in days[start_day_key]:
+            days[start_day_key][task_name] = not days[start_day_key][task_name]
+            save_program(program)
+            print(f":! task updated for today")
         else:
-            print('Please answer with y or n!')
+            print(":! task not found for today")
+        continue
+    
+    elif input_task == 'bds finish':
+        day_total = 0
+        for task_name, is_done in days[start_day_key].items():
+            if is_done:
+                program["score"] += 1
+                day_total += 1
+            else:
+                program["score"] -= 1
+                day_total -= 1
+            days[start_day_key][task_name] = False
 
+        save_program(program)
+        print(f":! day score: {day_total}")
+        print(f":! total score: {program['score']}")
+        print(":! all todays tasks reset to false")
+        continue
+
+    elif input_task == 'bds reset':
+        week_total = 0
+        for day_key in days_of_the_week:
+            for task_name, is_done in days[day_key].items():
+                if is_done:
+                    program["score"] += 1
+                    week_total += 1
+                else:
+                    program["score"] -= 1
+                    week_total -= 1
+                days[day_key][task_name] = False
+
+        save_program(program)
+        continue
+
+    else:
+        print(":! invalid command")
+        continue
